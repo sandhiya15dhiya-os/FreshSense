@@ -1,0 +1,153 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: "Poppins", sans-serif;
+}
+
+body {
+  background: linear-gradient(135deg, #050816, #0f172a, #1e1b4b);
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 30px;
+  color: white;
+}
+
+.container {
+  width: 100%;
+  max-width: 1000px;
+}
+
+.card {
+  background: rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(20px);
+  padding: 40px;
+  border-radius: 30px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+}
+
+.logo-badge {
+  text-align: center;
+  margin-bottom: 20px;
+  color: #60a5fa;
+  font-weight: 600;
+}
+
+h1 {
+  text-align: center;
+  font-size: 4rem;
+  background: linear-gradient(90deg, #a855f7, #60a5fa);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.subtitle {
+  text-align: center;
+  margin-top: 10px;
+  color: #cbd5e1;
+}
+
+.feature-tags {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 25px;
+  margin-bottom: 30px;
+}
+
+.feature-tags span {
+  padding: 10px 20px;
+  border-radius: 30px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.option-buttons {
+  display: flex;
+  gap: 15px;
+  margin-bottom: 25px;
+}
+
+.option-btn {
+  flex: 1;
+}
+
+button {
+  padding: 15px;
+  border: none;
+  border-radius: 15px;
+  cursor: pointer;
+  font-weight: 700;
+  font-size: 16px;
+  color: white;
+  background: linear-gradient(90deg, #8b5cf6, #3b82f6);
+  transition: 0.3s;
+}
+
+button:hover {
+  transform: translateY(-3px);
+}
+
+#video {
+  width: 100%;
+  border-radius: 20px;
+  border: 3px solid #8b5cf6;
+  margin-bottom: 15px;
+}
+
+input[type="file"] {
+  width: 100%;
+  padding: 15px;
+  border-radius: 15px;
+  margin-bottom: 15px;
+  background: #111827;
+  color: white;
+}
+
+.image-preview {
+  margin-top: 25px;
+  text-align: center;
+}
+
+.image-preview img {
+  width: 100%;
+  max-width: 400px;
+  border-radius: 20px;
+}
+
+.result-card {
+  margin-top: 25px;
+  padding: 25px;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 20px;
+}
+
+.result-card h2 {
+  text-align: center;
+  margin-bottom: 20px;
+  color: #a855f7;
+}
+
+.result-card p {
+  margin-bottom: 10px;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 10px;
+}
+
+@media (max-width: 768px) {
+  .option-buttons {
+    flex-direction: column;
+  }
+
+  h1 {
+    font-size: 2.5rem;
+  }
+
+  .card {
+    padding: 20px;
+  }
+}
