@@ -45,17 +45,39 @@ def analyze_film(image_path):
 
         }
 
+    # Resize image
+
     img = cv2.resize(
         img,
         (400, 400)
     )
 
+    # ===================================
+    # Analyze center region only
+    # (avoid background issue)
+    # ===================================
+
+    h, w, _ = img.shape
+
+    x1 = int(w * 0.20)
+    x2 = int(w * 0.80)
+
+    y1 = int(h * 0.20)
+    y2 = int(h * 0.80)
+
+    roi = img[
+        y1:y2,
+        x1:x2
+    ]
+
     hsv = cv2.cvtColor(
-        img,
+        roi,
         cv2.COLOR_BGR2HSV
     )
 
+    # ==========================
     # Purple Film Range
+    # ==========================
 
     lower_purple = np.array(
         [110, 40, 40]
@@ -65,7 +87,9 @@ def analyze_film(image_path):
         [170, 255, 255]
     )
 
+    # ==========================
     # White Film Range
+    # ==========================
 
     lower_white = np.array(
         [0, 0, 160]
@@ -96,16 +120,18 @@ def analyze_film(image_path):
     )
 
     total_pixels = (
-        img.shape[0]
-        * img.shape[1]
+        roi.shape[0]
+        * roi.shape[1]
     )
 
     purple_percent = (
-        purple_pixels / total_pixels
+        purple_pixels
+        / total_pixels
     ) * 100
 
     white_percent = (
-        white_pixels / total_pixels
+        white_pixels
+        / total_pixels
     ) * 100
 
     print(
@@ -118,11 +144,13 @@ def analyze_film(image_path):
         white_percent
     )
 
-    # ======================
-    # Fresh
-    # ======================
+    # ==========================
+    # Detection Logic
+    # ==========================
 
-    if purple_percent > white_percent:
+    # Purple film = Fresh
+
+    if purple_percent > 5:
 
         return {
 
@@ -152,11 +180,9 @@ def analyze_film(image_path):
 
         }
 
-    # ======================
-    # Spoiled
-    # ======================
+    # White film = Spoiled
 
-    else:
+    elif white_percent > 20:
 
         return {
 
@@ -186,13 +212,44 @@ def analyze_film(image_path):
 
         }
 
+    # Transition stage
+
+    else:
+
+        return {
+
+            "film_color":
+            "Light Purple",
+
+            "status":
+            "Moderately Spoiled",
+
+            "freshness":
+            "60%",
+
+            "level":
+            "Medium",
+
+            "ph":
+            "5.5",
+
+            "remaining_days":
+            "2 Days",
+
+            "precaution":
+            "Consume Soon",
+
+            "storage":
+            "Keep Refrigerated"
+
+        }
+
 
 # ==========================
 # Home Page
 # ==========================
 
 @app.route("/")
-
 def home():
 
     return render_template(
@@ -208,7 +265,6 @@ def home():
     "/upload",
     methods=["POST"]
 )
-
 def upload():
 
     file = request.files.get(
@@ -231,7 +287,9 @@ def upload():
 
     )
 
-    file.save(filepath)
+    file.save(
+        filepath
+    )
 
     result = analyze_film(
         filepath
@@ -256,12 +314,13 @@ def upload():
     "/scan",
     methods=["POST"]
 )
-
 def scan():
 
     data = request.json
 
-    image_data = data["image"]
+    image_data = data[
+        "image"
+    ]
 
     image_data = image_data.split(
         ","
