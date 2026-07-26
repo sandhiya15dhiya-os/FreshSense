@@ -2,216 +2,260 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-
-    <title>FreshSense AI</title>
-
+    <title>FreshSense AI - Smart Food Spoilage Detection</title>
     <link
       rel="stylesheet"
       href="{{ url_for('static', filename='style.css') }}"
     />
   </head>
-
   <body>
     <div class="container">
-      <div class="card">
-        <div class="logo-badge">Smart Food Spoilage Detection</div>
+      <p class="eyebrow">Smart Food Spoilage Detection</p>
+      <h1 class="brand">FreshSense <span>AI</span></h1>
+      <p class="tagline">
+        AI Based Smart Film Analysis for Food Freshness Detection
+      </p>
 
-        <h1>FreshSense AI</h1>
+      <div class="pill-row">
+        <span class="pill">AI Analysis</span>
+        <span class="pill">Live Camera Scan</span>
+        <span class="pill">Image Upload</span>
+        <span class="pill">pH Prediction</span>
+        <span class="pill">Shelf Life</span>
+      </div>
 
-        <p class="subtitle">
-          AI Based Smart Film Analysis for Food Freshness Detection
-        </p>
+      <div class="action-row">
+        <button id="liveScanBtn" class="btn-gradient">📷 Live Scan</button>
+        <button id="uploadImageBtn" class="btn-gradient">
+          📁 Upload Image
+        </button>
+      </div>
 
-        <div class="feature-tags">
-          <span>AI Analysis</span>
-          <span>Live Camera Scan</span>
-          <span>Image Upload</span>
-          <span>pH Prediction</span>
-          <span>Shelf Life</span>
-        </div>
-
-        <div class="option-buttons">
-          <button type="button" class="option-btn" onclick="showCamera()">
-            📷 Live Scan
+      <!-- Live camera section (hidden until Live Scan is clicked) -->
+      <div id="cameraSection" class="camera-section hidden">
+        <video id="video" autoplay playsinline></video>
+        <canvas id="canvas" class="hidden"></canvas>
+        <div class="camera-controls">
+          <button id="captureBtn" class="btn-gradient">
+            Capture &amp; Analyze
           </button>
-
-          <button type="button" class="option-btn" onclick="showUpload()">
-            📁 Upload Image
+          <button id="switchCameraBtn" class="btn-outline">
+            🔄 Switch Camera
           </button>
+          <button id="closeCameraBtn" class="btn-outline">Close Camera</button>
+        </div>
+      </div>
+
+      <div class="file-row">
+        <input type="file" id="fileInput" accept="image/*" />
+      </div>
+
+      <button id="analyzeBtn" class="btn-analyze">Upload &amp; Analyze</button>
+
+      <div id="loading" class="loading hidden">Analyzing film color...</div>
+
+      <div id="result" class="result hidden">
+        <h2 id="statusHeading"></h2>
+        <p id="confidenceText"></p>
+
+        <div class="result-grid">
+          <div class="result-card">
+            <h3>pH Prediction</h3>
+            <p id="phValue"></p>
+          </div>
+          <div class="result-card">
+            <h3>Shelf Life</h3>
+            <p id="shelfValue"></p>
+          </div>
         </div>
 
-        <!-- CAMERA -->
-
-        <div id="cameraSection">
-          <video id="video" autoplay muted playsinline></video>
-
-          <canvas id="canvas" style="display: none"> </canvas>
-
-          <button class="scan-btn" onclick="captureImage()">Scan Film</button>
+        <div class="precautions">
+          <h3>Precautions</h3>
+          <ul id="precautionsList"></ul>
         </div>
-
-        <!-- UPLOAD -->
-
-        <div id="uploadSection" style="display: none">
-          <form action="/upload" method="POST" enctype="multipart/form-data">
-            <input type="file" name="image" accept="image/*" required />
-
-            <button type="submit">Upload & Analyze</button>
-          </form>
-        </div>
-
-        <!-- IMAGE -->
-
-        {% if image_path %}
-
-        <div class="image-preview">
-          <h3>Uploaded Image</h3>
-
-          <img src="{{ image_path }}" alt="Uploaded Image" />
-        </div>
-
-        {% endif %}
-
-        <!-- RESULT -->
-
-        {% if result %}
-
-        <div class="result-card">
-          <h2>AI Analysis Report</h2>
-
-          <p>
-            <strong>Film Color:</strong>
-            {{ result.film_color }}
-          </p>
-
-          <p>
-            <strong>Status:</strong>
-            {{ result.status }}
-          </p>
-
-          <p>
-            <strong>Freshness:</strong>
-            {{ result.freshness }}
-          </p>
-
-          <p>
-            <strong>Spoilage Level:</strong>
-            {{ result.level }}
-          </p>
-
-          <p>
-            <strong>Estimated pH:</strong>
-            {{ result.ph }}
-          </p>
-
-          <p>
-            <strong>Shelf Life:</strong>
-            {{ result.remaining_days }}
-          </p>
-
-          <p>
-            <strong>Precaution:</strong>
-            {{ result.precaution }}
-          </p>
-
-          <p>
-            <strong>Storage:</strong>
-            {{ result.storage }}
-          </p>
-        </div>
-
-        {% endif %}
-
-        <div id="result"></div>
       </div>
     </div>
 
     <script>
-      function showCamera() {
-        document.getElementById("cameraSection").style.display = "block";
+      const liveScanBtn = document.getElementById("liveScanBtn");
+      const uploadImageBtn = document.getElementById("uploadImageBtn");
+      const cameraSection = document.getElementById("cameraSection");
+      const video = document.getElementById("video");
+      const canvas = document.getElementById("canvas");
+      const captureBtn = document.getElementById("captureBtn");
+      const switchCameraBtn = document.getElementById("switchCameraBtn");
+      const closeCameraBtn = document.getElementById("closeCameraBtn");
+      const fileInput = document.getElementById("fileInput");
+      const analyzeBtn = document.getElementById("analyzeBtn");
+      const loading = document.getElementById("loading");
+      const result = document.getElementById("result");
 
-        document.getElementById("uploadSection").style.display = "none";
-      }
+      let stream = null;
+      let videoDevices = [];
+      let currentDeviceIndex = 0;
 
-      function showUpload() {
-        document.getElementById("cameraSection").style.display = "none";
+      // Scroll to upload/file section
+      uploadImageBtn.addEventListener("click", () => {
+        fileInput.scrollIntoView({ behavior: "smooth" });
+        fileInput.click();
+      });
 
-        document.getElementById("uploadSection").style.display = "block";
-      }
-
-      async function startCamera() {
+      async function listVideoDevices() {
+        // Labels are only populated after permission is granted at least once,
+        // so we open a throwaway stream first, then enumerate devices.
         try {
-          const stream = await navigator.mediaDevices.getUserMedia({
+          const temp = await navigator.mediaDevices.getUserMedia({
             video: true,
+            audio: false,
           });
+          temp.getTracks().forEach((t) => t.stop());
+        } catch (e) {
+          // ignore, enumerateDevices will just return devices without labels
+        }
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        return devices.filter((d) => d.kind === "videoinput");
+      }
 
-          document.getElementById("video").srcObject = stream;
-        } catch (error) {
-          console.log(error);
+      function pickBackCameraIndex(devices) {
+        // Try to find the rear/back/environment camera by its label first
+        const idx = devices.findIndex((d) =>
+          /back|rear|environment/i.test(d.label),
+        );
+        if (idx !== -1) return idx;
+        // Heuristic fallback: on most phones the back camera is listed AFTER
+        // the front camera, so pick the last device if there is more than one
+        if (devices.length > 1) return devices.length - 1;
+        return 0;
+      }
+
+      async function startCameraByIndex(index) {
+        if (stream) {
+          stream.getTracks().forEach((track) => track.stop());
+        }
+        const device = videoDevices[index];
+        const constraints = device
+          ? { video: { deviceId: { exact: device.deviceId } }, audio: false }
+          : { video: { facingMode: "environment" }, audio: false };
+
+        stream = await navigator.mediaDevices.getUserMedia(constraints);
+        video.srcObject = stream;
+        currentDeviceIndex = index;
+      }
+
+      // Open camera - defaults to BACK camera, like a QR scanner
+      liveScanBtn.addEventListener("click", async () => {
+        cameraSection.classList.remove("hidden");
+        try {
+          videoDevices = await listVideoDevices();
+          const backIndex = pickBackCameraIndex(videoDevices);
+          await startCameraByIndex(backIndex);
+
+          // Hide switch button if there's genuinely only one camera on the device
+          switchCameraBtn.style.display =
+            videoDevices.length > 1 ? "inline-block" : "none";
+        } catch (err) {
+          alert("Could not access camera. Please allow camera permission.");
+          console.error(err);
+        }
+      });
+
+      // Manual switch - cycles through every available camera (front/back/wide etc.)
+      switchCameraBtn.addEventListener("click", async () => {
+        if (videoDevices.length < 2) return;
+        const nextIndex = (currentDeviceIndex + 1) % videoDevices.length;
+        try {
+          await startCameraByIndex(nextIndex);
+        } catch (err) {
+          alert("Could not switch camera.");
+          console.error(err);
+        }
+      });
+
+      closeCameraBtn.addEventListener("click", () => {
+        if (stream) {
+          stream.getTracks().forEach((track) => track.stop());
+        }
+        cameraSection.classList.add("hidden");
+      });
+
+      captureBtn.addEventListener("click", () => {
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+        canvas.toBlob((blob) => {
+          const file = new File([blob], "capture.jpg", { type: "image/jpeg" });
+          const dt = new DataTransfer();
+          dt.items.add(file);
+          fileInput.files = dt.files;
+          sendForAnalysis(file);
+        }, "image/jpeg");
+      });
+
+      analyzeBtn.addEventListener("click", () => {
+        if (!fileInput.files || fileInput.files.length === 0) {
+          alert("Please choose a file or use Live Scan first.");
+          return;
+        }
+        sendForAnalysis(fileInput.files[0]);
+      });
+
+      async function sendForAnalysis(file) {
+        loading.classList.remove("hidden");
+        result.classList.add("hidden");
+
+        const formData = new FormData();
+        formData.append("image", file);
+
+        try {
+          const res = await fetch("/analyze", {
+            method: "POST",
+            body: formData,
+          });
+          const data = await res.json();
+          loading.classList.add("hidden");
+
+          if (data.error) {
+            alert(data.error);
+            return;
+          }
+
+          renderResult(data);
+        } catch (err) {
+          loading.classList.add("hidden");
+          alert("Something went wrong while analyzing. Try again.");
+          console.error(err);
         }
       }
 
-      window.onload = function () {
-        startCamera();
-      };
+      function renderResult(data) {
+        const statusHeading = document.getElementById("statusHeading");
+        statusHeading.textContent = data.status;
+        statusHeading.className = "";
+        if (data.status === "Fresh")
+          statusHeading.classList.add("status-fresh");
+        else if (data.status === "Moderately Spoiled")
+          statusHeading.classList.add("status-moderate");
+        else statusHeading.classList.add("status-spoiled");
 
-      function captureImage() {
-        let video = document.getElementById("video");
+        document.getElementById("confidenceText").textContent =
+          `Confidence: ${data.confidence}%`;
+        document.getElementById("phValue").textContent =
+          `${data.ph_prediction.average} (range ${data.ph_prediction.range})`;
+        document.getElementById("shelfValue").textContent = data.shelf_life;
 
-        let canvas = document.getElementById("canvas");
+        const list = document.getElementById("precautionsList");
+        list.innerHTML = "";
+        data.precautions.forEach((p) => {
+          const li = document.createElement("li");
+          li.textContent = p;
+          list.appendChild(li);
+        });
 
-        let ctx = canvas.getContext("2d");
-
-        canvas.width = video.videoWidth;
-
-        canvas.height = video.videoHeight;
-
-        ctx.drawImage(video, 0, 0);
-
-        let imageData = canvas.toDataURL("image/png");
-
-        fetch("/scan", {
-          method: "POST",
-
-          headers: {
-            "Content-Type": "application/json",
-          },
-
-          body: JSON.stringify({
-            image: imageData,
-          }),
-        })
-          .then((response) => response.json())
-
-          .then((data) => {
-            document.getElementById("result").innerHTML = `
-
-        <div class="result-card">
-
-            <h2>AI Analysis Report</h2>
-
-            <p><strong>Film Color:</strong> ${data.film_color}</p>
-
-            <p><strong>Status:</strong> ${data.status}</p>
-
-            <p><strong>Freshness:</strong> ${data.freshness}</p>
-
-            <p><strong>Spoilage Level:</strong> ${data.level}</p>
-
-            <p><strong>Estimated pH:</strong> ${data.ph}</p>
-
-            <p><strong>Shelf Life:</strong> ${data.remaining_days}</p>
-
-            <p><strong>Precaution:</strong> ${data.precaution}</p>
-
-            <p><strong>Storage:</strong> ${data.storage}</p>
-
-        </div>
-
-        `;
-          });
+        result.classList.remove("hidden");
+        result.scrollIntoView({ behavior: "smooth" });
       }
     </script>
   </body>
