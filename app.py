@@ -1,5 +1,7 @@
 import os
 import colorsys
+import cv2
+import numpy as np
 from flask import Flask, request, jsonify, render_template
 from PIL import Image
 from werkzeug.utils import secure_filename
@@ -10,6 +12,30 @@ UPLOAD_FOLDER = os.path.join('static', 'uploads')
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'webp'}
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+
+# Pre-load the face detector once at startup (not per-request) for speed
+FACE_CASCADE = cv2.CascadeClassifier(
+    cv2.data.haarcascades + 'haarcascade_frontalface_default.xml'
+)
+
+
+def contains_face(image_path):
+    """
+    Returns True if a human face is detected in the image. Used to block
+    people from accidentally (or intentionally) scanning a selfie/face
+    instead of an actual food/film sample.
+    """
+    img = cv2.imread(image_path)
+    if img is None:
+        return False
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    h, w = gray.shape[:2]
+    # Faces smaller than this are unlikely to be the main subject
+    min_size = max(40, int(min(h, w) * 0.12))
+    faces = FACE_CASCADE.detectMultiScale(
+        gray, scaleFactor=1.1, minNeighbors=6, minSize=(min_size, min_size)
+    )
+    return len(faces) > 0
 
 
 def allowed_file(filename):
@@ -42,44 +68,45 @@ def get_average_color(image_path, crop_ratio=0.5):
 def classify_film(r, g, b):
     """
     Core smart-film logic:
-      Dark / slight purple  -> Fresh
-      Light purple          -> Moderately Spoiled
-      White                 -> Spoiled
+      Purple (dark or light)   -> Fresh
+      Yellow / pale yellow     -> Moderately Spoiled
+      White                    -> Spoiled
     Classification is done using HSV (hue, saturation, value) which is far
     more stable than raw RGB thresholds under different lighting.
     """
     h, s, v = colorsys.rgb_to_hsv(r / 255.0, g / 255.0, b / 255.0)
     hue_deg = h * 360
 
-    # Purple / violet hue band (roughly 240 - 320 degrees)
-    is_purple_hue = 230 <= hue_deg <= 330
+    is_white = s <= 0.12 and v >= 0.85
+    is_purple = 230 <= hue_deg <= 330 and s >= 0.15
+    is_yellow = 25 <= hue_deg <= 75
 
-    # White film: very low saturation + very high brightness, regardless of hue
-    if s <= 0.18 and v >= 0.78:
+    if is_white:
+        # Achromatic (near colorless) + bright = white film
         status = "Spoiled"
-        confidence = round(min(99, (v * 100) - (s * 40)), 1)
+        confidence = round(min(99, (v * 100) - (s * 30)), 1)
 
-    # Light purple: purple hue, moderate saturation, high-ish brightness
-    elif is_purple_hue and s <= 0.45 and v >= 0.55:
-        status = "Moderately Spoiled"
-        confidence = round(min(95, 60 + (s * 50)), 1)
-
-    # Dark / deep purple: purple hue, strong saturation, lower brightness
-    elif is_purple_hue and s > 0.35:
+    elif is_purple:
+        # Any purple tint, dark or light, counts as Fresh
         status = "Fresh"
-        confidence = round(min(98, 65 + (s * 40) - (v * 10)), 1)
+        confidence = round(min(98, 55 + (s * 50)), 1)
+
+    elif is_yellow:
+        # Pale yellow / cream / straw-yellow tint = moderately spoiled
+        # Confidence is higher the closer the hue sits to pure yellow (45deg)
+        closeness = max(0.0, 1 - abs(hue_deg - 45) / 30)
+        confidence = round(min(95, 55 + (closeness * 30) + (s * 20)), 1)
+        status = "Moderately Spoiled"
 
     else:
-        # Fallback: use brightness alone if hue is ambiguous (e.g. shadows)
-        if v >= 0.75:
+        # Ambiguous color (greenish/brownish/etc.) - fall back on brightness
+        if v >= 0.8 and s <= 0.25:
             status = "Spoiled"
-            confidence = 55.0
-        elif v >= 0.5:
+        elif s <= 0.3:
             status = "Moderately Spoiled"
-            confidence = 55.0
         else:
             status = "Fresh"
-            confidence = 55.0
+        confidence = 50.0
 
     return status, max(50.0, min(confidence, 99.0)), round(hue_deg, 1), round(s, 2), round(v, 2)
 
@@ -147,6 +174,13 @@ def analyze():
     filename = secure_filename(file.filename)
     filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
     file.save(filepath)
+
+    # Block selfies / face photos - this scanner is for food/film samples only
+    if contains_face(filepath):
+        os.remove(filepath)
+        return jsonify({
+            'error': "Face detected. Please scan a food item or smart film, not a face/selfie."
+        }), 400
 
     r, g, b = get_average_color(filepath)
     status, confidence, hue, sat, val = classify_film(r, g, b)
