@@ -4,3 +4,5 @@ gunicorn==22.0.0
 Werkzeug==3.0.3
 opencv-python-headless==4.10.0.84
 numpy==1.26.4
+scikit-learn==1.5.1
+joblib==1.4.2

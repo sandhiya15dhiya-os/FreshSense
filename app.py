@@ -2,9 +2,12 @@ import os
 import colorsys
 import cv2
 import numpy as np
+import joblib
 from flask import Flask, request, jsonify, render_template
 from PIL import Image
 from werkzeug.utils import secure_filename
+
+from features import extract_features
 
 app = Flask(__name__)
 
@@ -17,6 +20,12 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 FACE_CASCADE = cv2.CascadeClassifier(
     cv2.data.haarcascades + 'haarcascade_frontalface_default.xml'
 )
+
+# Load the trained ML model if it exists (run train_model.py to create it).
+# If it's missing, the app falls back to the hardcoded HSV rules below so
+# it still works out of the box.
+MODEL_PATH = "model.pkl"
+ML_MODEL = joblib.load(MODEL_PATH) if os.path.exists(MODEL_PATH) else None
 
 
 def contains_face(image_path):
@@ -63,6 +72,29 @@ def get_average_color(image_path, crop_ratio=0.5):
     g = sum(p[1] for p in pixels) / len(pixels)
     b = sum(p[2] for p in pixels) / len(pixels)
     return r, g, b
+
+
+def classify_with_model(image_path, r, g, b):
+    """
+    Uses the trained Random Forest model if available (much more accurate,
+    learns from real photos). Falls back to the hardcoded HSV rules if
+    model.pkl hasn't been trained yet (see train_model.py).
+    Returns: status, confidence, hue, sat, val
+    """
+    h, s, v = colorsys.rgb_to_hsv(r / 255.0, g / 255.0, b / 255.0)
+    hue_deg = round(h * 360, 1)
+
+    if ML_MODEL is not None:
+        feats = extract_features(image_path).reshape(1, -1)
+        probs = ML_MODEL.predict_proba(feats)[0]
+        classes = ML_MODEL.classes_
+        best_idx = int(np.argmax(probs))
+        status = classes[best_idx]
+        confidence = round(float(probs[best_idx]) * 100, 1)
+        return status, confidence, hue_deg, round(s, 2), round(v, 2)
+
+    # ---- Fallback: hardcoded HSV rules (used only if model.pkl is missing) ----
+    return classify_film(r, g, b)
 
 
 def classify_film(r, g, b):
@@ -183,7 +215,7 @@ def analyze():
         }), 400
 
     r, g, b = get_average_color(filepath)
-    status, confidence, hue, sat, val = classify_film(r, g, b)
+    status, confidence, hue, sat, val = classify_with_model(filepath, r, g, b)
     ph_avg, ph_low, ph_high = predict_ph(status)
     shelf_life = predict_shelf_life(status)
     precautions = get_precautions(status)
