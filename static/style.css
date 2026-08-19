@@ -230,3 +230,31 @@ body {
     flex-direction: column;
   }
 }
+/* =========================
+   UPLOADED IMAGE PREVIEW
+========================= */
+
+.uploaded-image-container {
+  width: 100%;
+  margin: 25px 0 30px;
+  text-align: center;
+}
+
+.uploaded-image-container h3 {
+  color: #a78bfa;
+  margin-bottom: 18px;
+  font-size: 20px;
+}
+
+.uploaded-image {
+  width: 100%;
+  max-width: 600px;
+  max-height: 450px;
+  object-fit: contain;
+  display: block;
+  margin: 0 auto;
+  border-radius: 20px;
+  border: 2px solid #7c3aed;
+  box-shadow: 0 0 30px rgba(124, 58, 237, 0.35);
+  background: #11101a;
+}

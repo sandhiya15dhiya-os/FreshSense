@@ -1,3 +1,4 @@
+```html
 <!doctype html>
 <html lang="en">
   <head>
@@ -9,10 +10,13 @@
       href="{{ url_for('static', filename='style.css') }}"
     />
   </head>
+
   <body>
     <div class="container">
       <p class="eyebrow">Smart Food Spoilage Detection</p>
+
       <h1 class="brand">FreshSense <span>AI</span></h1>
+
       <p class="tagline">
         AI Based Smart Film Analysis for Food Freshness Detection
       </p>
@@ -26,54 +30,99 @@
       </div>
 
       <div class="action-row">
-        <button id="liveScanBtn" class="btn-gradient">📷 Live Scan</button>
+        <button id="liveScanBtn" class="btn-gradient">
+          📷 Live Scan
+        </button>
+
         <button id="uploadImageBtn" class="btn-gradient">
           📁 Upload Image
         </button>
       </div>
 
-      <!-- Live camera section (hidden until Live Scan is clicked) -->
+      <!-- Live Camera Section -->
       <div id="cameraSection" class="camera-section hidden">
+
         <video id="video" autoplay playsinline></video>
+
         <canvas id="canvas" class="hidden"></canvas>
+
         <div class="camera-controls">
           <button id="captureBtn" class="btn-gradient">
             Capture &amp; Analyze
           </button>
+
           <button id="switchCameraBtn" class="btn-outline">
             🔄 Switch Camera
           </button>
-          <button id="closeCameraBtn" class="btn-outline">Close Camera</button>
+
+          <button id="closeCameraBtn" class="btn-outline">
+            Close Camera
+          </button>
         </div>
+
       </div>
 
+      <!-- File Upload -->
       <div class="file-row">
         <input type="file" id="fileInput" accept="image/*" />
       </div>
 
-      <button id="analyzeBtn" class="btn-analyze">Upload &amp; Analyze</button>
+      <button id="analyzeBtn" class="btn-analyze">
+        Upload &amp; Analyze
+      </button>
 
-      <div id="loading" class="loading hidden">Analyzing film color...</div>
+      <!-- Loading -->
+      <div id="loading" class="loading hidden">
+        Analyzing film color...
+      </div>
 
+      <!-- Result Section -->
       <div id="result" class="result hidden">
+
+        <!-- Uploaded / Captured Image -->
+        {% if image_path %}
+        <div class="uploaded-image-container">
+
+          <h3>📷 Analyzed Image</h3>
+
+          <img
+            src="{{ url_for('static', filename=image_path.replace('static/', '')) }}"
+            alt="Uploaded Food Film"
+            class="uploaded-image"
+          />
+
+        </div>
+        {% endif %}
+
+        <!-- Status -->
         <h2 id="statusHeading"></h2>
+
         <p id="confidenceText"></p>
 
+        <!-- Result Grid -->
         <div class="result-grid">
+
           <div class="result-card">
             <h3>pH Prediction</h3>
             <p id="phValue"></p>
           </div>
+
           <div class="result-card">
             <h3>Shelf Life</h3>
             <p id="shelfValue"></p>
           </div>
+
         </div>
 
+        <!-- Precautions -->
         <div class="precautions">
+
           <h3>Precautions</h3>
+
           <ul id="precautionsList"></ul>
+
         </div>
+
       </div>
     </div>
 
@@ -95,168 +144,389 @@
       let videoDevices = [];
       let currentDeviceIndex = 0;
 
-      // Scroll to upload/file section
+      // Upload Image button
       uploadImageBtn.addEventListener("click", () => {
         fileInput.scrollIntoView({ behavior: "smooth" });
         fileInput.click();
       });
 
+      // List available cameras
       async function listVideoDevices() {
-        // Labels are only populated after permission is granted at least once,
-        // so we open a throwaway stream first, then enumerate devices.
         try {
           const temp = await navigator.mediaDevices.getUserMedia({
             video: true,
             audio: false,
           });
+
           temp.getTracks().forEach((t) => t.stop());
+
         } catch (e) {
-          // ignore, enumerateDevices will just return devices without labels
+          // Permission error ignored
         }
-        const devices = await navigator.mediaDevices.enumerateDevices();
-        return devices.filter((d) => d.kind === "videoinput");
+
+        const devices =
+          await navigator.mediaDevices.enumerateDevices();
+
+        return devices.filter(
+          (d) => d.kind === "videoinput"
+        );
       }
 
+      // Pick back camera
       function pickBackCameraIndex(devices) {
-        // Try to find the rear/back/environment camera by its label first
+
         const idx = devices.findIndex((d) =>
-          /back|rear|environment/i.test(d.label),
+          /back|rear|environment/i.test(d.label)
         );
+
         if (idx !== -1) return idx;
-        // Heuristic fallback: on most phones the back camera is listed AFTER
-        // the front camera, so pick the last device if there is more than one
-        if (devices.length > 1) return devices.length - 1;
+
+        if (devices.length > 1)
+          return devices.length - 1;
+
         return 0;
       }
 
+      // Start camera
       async function startCameraByIndex(index) {
-        if (stream) {
-          stream.getTracks().forEach((track) => track.stop());
-        }
-        const device = videoDevices[index];
-        const constraints = device
-          ? { video: { deviceId: { exact: device.deviceId } }, audio: false }
-          : { video: { facingMode: "environment" }, audio: false };
 
-        stream = await navigator.mediaDevices.getUserMedia(constraints);
+        if (stream) {
+          stream.getTracks().forEach(
+            (track) => track.stop()
+          );
+        }
+
+        const device = videoDevices[index];
+
+        const constraints = device
+          ? {
+              video: {
+                deviceId: {
+                  exact: device.deviceId,
+                },
+              },
+              audio: false,
+            }
+          : {
+              video: {
+                facingMode: "environment",
+              },
+              audio: false,
+            };
+
+        stream =
+          await navigator.mediaDevices.getUserMedia(
+            constraints
+          );
+
         video.srcObject = stream;
+
         currentDeviceIndex = index;
       }
 
-      // Open camera - defaults to BACK camera, like a QR scanner
-      liveScanBtn.addEventListener("click", async () => {
-        cameraSection.classList.remove("hidden");
-        try {
-          videoDevices = await listVideoDevices();
-          const backIndex = pickBackCameraIndex(videoDevices);
-          await startCameraByIndex(backIndex);
+      // Open camera
+      liveScanBtn.addEventListener(
+        "click",
+        async () => {
 
-          // Hide switch button if there's genuinely only one camera on the device
-          switchCameraBtn.style.display =
-            videoDevices.length > 1 ? "inline-block" : "none";
-        } catch (err) {
-          alert("Could not access camera. Please allow camera permission.");
-          console.error(err);
+          cameraSection.classList.remove("hidden");
+
+          try {
+
+            videoDevices =
+              await listVideoDevices();
+
+            const backIndex =
+              pickBackCameraIndex(
+                videoDevices
+              );
+
+            await startCameraByIndex(
+              backIndex
+            );
+
+            switchCameraBtn.style.display =
+              videoDevices.length > 1
+                ? "inline-block"
+                : "none";
+
+          } catch (err) {
+
+            alert(
+              "Could not access camera. Please allow camera permission."
+            );
+
+            console.error(err);
+          }
         }
-      });
+      );
 
-      // Manual switch - cycles through every available camera (front/back/wide etc.)
-      switchCameraBtn.addEventListener("click", async () => {
-        if (videoDevices.length < 2) return;
-        const nextIndex = (currentDeviceIndex + 1) % videoDevices.length;
-        try {
-          await startCameraByIndex(nextIndex);
-        } catch (err) {
-          alert("Could not switch camera.");
-          console.error(err);
+      // Switch camera
+      switchCameraBtn.addEventListener(
+        "click",
+        async () => {
+
+          if (videoDevices.length < 2)
+            return;
+
+          const nextIndex =
+            (currentDeviceIndex + 1) %
+            videoDevices.length;
+
+          try {
+
+            await startCameraByIndex(
+              nextIndex
+            );
+
+          } catch (err) {
+
+            alert(
+              "Could not switch camera."
+            );
+
+            console.error(err);
+          }
         }
-      });
+      );
 
-      closeCameraBtn.addEventListener("click", () => {
-        if (stream) {
-          stream.getTracks().forEach((track) => track.stop());
+      // Close camera
+      closeCameraBtn.addEventListener(
+        "click",
+        () => {
+
+          if (stream) {
+
+            stream.getTracks().forEach(
+              (track) => track.stop()
+            );
+
+          }
+
+          cameraSection.classList.add(
+            "hidden"
+          );
         }
-        cameraSection.classList.add("hidden");
-      });
+      );
 
-      captureBtn.addEventListener("click", () => {
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
-        const ctx = canvas.getContext("2d");
-        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      // Capture image
+      captureBtn.addEventListener(
+        "click",
+        () => {
 
-        canvas.toBlob((blob) => {
-          const file = new File([blob], "capture.jpg", { type: "image/jpeg" });
-          const dt = new DataTransfer();
-          dt.items.add(file);
-          fileInput.files = dt.files;
-          sendForAnalysis(file);
-        }, "image/jpeg");
-      });
+          canvas.width =
+            video.videoWidth;
 
-      analyzeBtn.addEventListener("click", () => {
-        if (!fileInput.files || fileInput.files.length === 0) {
-          alert("Please choose a file or use Live Scan first.");
-          return;
+          canvas.height =
+            video.videoHeight;
+
+          const ctx =
+            canvas.getContext("2d");
+
+          ctx.drawImage(
+            video,
+            0,
+            0,
+            canvas.width,
+            canvas.height
+          );
+
+          canvas.toBlob(
+            (blob) => {
+
+              const file =
+                new File(
+                  [blob],
+                  "capture.jpg",
+                  {
+                    type: "image/jpeg",
+                  }
+                );
+
+              const dt =
+                new DataTransfer();
+
+              dt.items.add(file);
+
+              fileInput.files =
+                dt.files;
+
+              sendForAnalysis(file);
+
+            },
+            "image/jpeg"
+          );
         }
-        sendForAnalysis(fileInput.files[0]);
-      });
+      );
 
+      // Analyze uploaded image
+      analyzeBtn.addEventListener(
+        "click",
+        () => {
+
+          if (
+            !fileInput.files ||
+            fileInput.files.length === 0
+          ) {
+
+            alert(
+              "Please choose a file or use Live Scan first."
+            );
+
+            return;
+          }
+
+          sendForAnalysis(
+            fileInput.files[0]
+          );
+        }
+      );
+
+      // Send image to Flask
       async function sendForAnalysis(file) {
-        loading.classList.remove("hidden");
-        result.classList.add("hidden");
 
-        const formData = new FormData();
-        formData.append("image", file);
+        loading.classList.remove(
+          "hidden"
+        );
+
+        result.classList.add(
+          "hidden"
+        );
+
+        const formData =
+          new FormData();
+
+        formData.append(
+          "image",
+          file
+        );
 
         try {
-          const res = await fetch("/analyze", {
-            method: "POST",
-            body: formData,
-          });
-          const data = await res.json();
-          loading.classList.add("hidden");
+
+          const res =
+            await fetch(
+              "/analyze",
+              {
+                method: "POST",
+                body: formData,
+              }
+            );
+
+          const data =
+            await res.json();
+
+          loading.classList.add(
+            "hidden"
+          );
 
           if (data.error) {
-            alert("⚠️ " + data.error);
+
+            alert(
+              "⚠️ " + data.error
+            );
+
             return;
           }
 
           renderResult(data);
+
         } catch (err) {
-          loading.classList.add("hidden");
-          alert("Something went wrong while analyzing. Try again.");
+
+          loading.classList.add(
+            "hidden"
+          );
+
+          alert(
+            "Something went wrong while analyzing. Try again."
+          );
+
           console.error(err);
         }
       }
 
+      // Display result
       function renderResult(data) {
-        const statusHeading = document.getElementById("statusHeading");
-        statusHeading.textContent = data.status;
-        statusHeading.className = "";
-        if (data.status === "Fresh")
-          statusHeading.classList.add("status-fresh");
-        else if (data.status === "Moderately Spoiled")
-          statusHeading.classList.add("status-moderate");
-        else statusHeading.classList.add("status-spoiled");
 
-        document.getElementById("confidenceText").textContent =
+        const statusHeading =
+          document.getElementById(
+            "statusHeading"
+          );
+
+        statusHeading.textContent =
+          data.status;
+
+        statusHeading.className =
+          "";
+
+        if (
+          data.status === "Fresh"
+        ) {
+
+          statusHeading.classList.add(
+            "status-fresh"
+          );
+
+        } else if (
+          data.status ===
+          "Moderately Spoiled"
+        ) {
+
+          statusHeading.classList.add(
+            "status-moderate"
+          );
+
+        } else {
+
+          statusHeading.classList.add(
+            "status-spoiled"
+          );
+        }
+
+        document.getElementById(
+          "confidenceText"
+        ).textContent =
           `Confidence: ${data.confidence}%`;
-        document.getElementById("phValue").textContent =
+
+        document.getElementById(
+          "phValue"
+        ).textContent =
           `${data.ph_prediction.average} (range ${data.ph_prediction.range})`;
-        document.getElementById("shelfValue").textContent = data.shelf_life;
 
-        const list = document.getElementById("precautionsList");
+        document.getElementById(
+          "shelfValue"
+        ).textContent =
+          data.shelf_life;
+
+        const list =
+          document.getElementById(
+            "precautionsList"
+          );
+
         list.innerHTML = "";
-        data.precautions.forEach((p) => {
-          const li = document.createElement("li");
-          li.textContent = p;
-          list.appendChild(li);
-        });
 
-        result.classList.remove("hidden");
-        result.scrollIntoView({ behavior: "smooth" });
+        data.precautions.forEach(
+          (p) => {
+
+            const li =
+              document.createElement(
+                "li"
+              );
+
+            li.textContent = p;
+
+            list.appendChild(li);
+          }
+        );
+
+        result.classList.remove(
+          "hidden"
+        );
+
+        result.scrollIntoView({
+          behavior: "smooth",
+        });
       }
     </script>
   </body>
 </html>
+```
