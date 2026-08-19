@@ -5,6 +5,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>FreshSense AI - Smart Food Spoilage Detection</title>
+
     <link
       rel="stylesheet"
       href="{{ url_for('static', filename='style.css') }}"
@@ -41,7 +42,6 @@
 
       <!-- Live Camera Section -->
       <div id="cameraSection" class="camera-section hidden">
-
         <video id="video" autoplay playsinline></video>
 
         <canvas id="canvas" class="hidden"></canvas>
@@ -59,7 +59,6 @@
             Close Camera
           </button>
         </div>
-
       </div>
 
       <!-- File Upload -->
@@ -79,20 +78,24 @@
       <!-- Result Section -->
       <div id="result" class="result hidden">
 
-        <!-- Uploaded / Captured Image -->
-        {% if image_path %}
-        <div class="uploaded-image-container">
+        <!-- =====================================================
+             ANALYZED IMAGE
+             This image is received from Flask as data.image_url
+             ===================================================== -->
 
+        <div
+          id="uploadedImageContainer"
+          class="uploaded-image-container hidden"
+        >
           <h3>📷 Analyzed Image</h3>
 
           <img
-            src="{{ url_for('static', filename=image_path.replace('static/', '')) }}"
+            id="uploadedImage"
+            src=""
             alt="Uploaded Food Film"
             class="uploaded-image"
           />
-
         </div>
-        {% endif %}
 
         <!-- Status -->
         <h2 id="statusHeading"></h2>
@@ -101,7 +104,6 @@
 
         <!-- Result Grid -->
         <div class="result-grid">
-
           <div class="result-card">
             <h3>pH Prediction</h3>
             <p id="phValue"></p>
@@ -111,57 +113,107 @@
             <h3>Shelf Life</h3>
             <p id="shelfValue"></p>
           </div>
-
         </div>
 
         <!-- Precautions -->
         <div class="precautions">
-
           <h3>Precautions</h3>
 
           <ul id="precautionsList"></ul>
-
         </div>
-
       </div>
     </div>
 
     <script>
-      const liveScanBtn = document.getElementById("liveScanBtn");
-      const uploadImageBtn = document.getElementById("uploadImageBtn");
-      const cameraSection = document.getElementById("cameraSection");
-      const video = document.getElementById("video");
-      const canvas = document.getElementById("canvas");
-      const captureBtn = document.getElementById("captureBtn");
-      const switchCameraBtn = document.getElementById("switchCameraBtn");
-      const closeCameraBtn = document.getElementById("closeCameraBtn");
-      const fileInput = document.getElementById("fileInput");
-      const analyzeBtn = document.getElementById("analyzeBtn");
-      const loading = document.getElementById("loading");
-      const result = document.getElementById("result");
+      const liveScanBtn =
+        document.getElementById("liveScanBtn");
+
+      const uploadImageBtn =
+        document.getElementById("uploadImageBtn");
+
+      const cameraSection =
+        document.getElementById("cameraSection");
+
+      const video =
+        document.getElementById("video");
+
+      const canvas =
+        document.getElementById("canvas");
+
+      const captureBtn =
+        document.getElementById("captureBtn");
+
+      const switchCameraBtn =
+        document.getElementById("switchCameraBtn");
+
+      const closeCameraBtn =
+        document.getElementById("closeCameraBtn");
+
+      const fileInput =
+        document.getElementById("fileInput");
+
+      const analyzeBtn =
+        document.getElementById("analyzeBtn");
+
+      const loading =
+        document.getElementById("loading");
+
+      const result =
+        document.getElementById("result");
+
+      /* =====================================================
+         IMAGE ELEMENTS
+         ===================================================== */
+
+      const uploadedImageContainer =
+        document.getElementById(
+          "uploadedImageContainer"
+        );
+
+      const uploadedImage =
+        document.getElementById(
+          "uploadedImage"
+        );
 
       let stream = null;
       let videoDevices = [];
       let currentDeviceIndex = 0;
 
-      // Upload Image button
-      uploadImageBtn.addEventListener("click", () => {
-        fileInput.scrollIntoView({ behavior: "smooth" });
-        fileInput.click();
-      });
+      /* =====================================================
+         UPLOAD IMAGE BUTTON
+         ===================================================== */
 
-      // List available cameras
-      async function listVideoDevices() {
-        try {
-          const temp = await navigator.mediaDevices.getUserMedia({
-            video: true,
-            audio: false,
+      uploadImageBtn.addEventListener(
+        "click",
+        () => {
+          fileInput.scrollIntoView({
+            behavior: "smooth",
           });
 
-          temp.getTracks().forEach((t) => t.stop());
+          fileInput.click();
+        }
+      );
+
+      /* =====================================================
+         LIST VIDEO DEVICES
+         ===================================================== */
+
+      async function listVideoDevices() {
+        try {
+          const temp =
+            await navigator.mediaDevices.getUserMedia({
+              video: true,
+              audio: false,
+            });
+
+          temp
+            .getTracks()
+            .forEach((t) => t.stop());
 
         } catch (e) {
-          // Permission error ignored
+          console.log(
+            "Camera permission not granted yet."
+          );
         }
 
         const devices =
@@ -172,44 +224,61 @@
         );
       }
 
-      // Pick back camera
+      /* =====================================================
+         PICK BACK CAMERA
+         ===================================================== */
+
       function pickBackCameraIndex(devices) {
 
-        const idx = devices.findIndex((d) =>
-          /back|rear|environment/i.test(d.label)
-        );
+        const idx =
+          devices.findIndex((d) =>
+            /back|rear|environment/i.test(
+              d.label
+            )
+          );
 
-        if (idx !== -1) return idx;
+        if (idx !== -1) {
+          return idx;
+        }
 
-        if (devices.length > 1)
+        if (devices.length > 1) {
           return devices.length - 1;
+        }
 
         return 0;
       }
 
-      // Start camera
+      /* =====================================================
+         START CAMERA
+         ===================================================== */
+
       async function startCameraByIndex(index) {
 
         if (stream) {
-          stream.getTracks().forEach(
-            (track) => track.stop()
-          );
+          stream
+            .getTracks()
+            .forEach((track) =>
+              track.stop()
+            );
         }
 
-        const device = videoDevices[index];
+        const device =
+          videoDevices[index];
 
         const constraints = device
           ? {
               video: {
                 deviceId: {
-                  exact: device.deviceId,
+                  exact:
+                    device.deviceId,
                 },
               },
               audio: false,
             }
           : {
               video: {
-                facingMode: "environment",
+                facingMode:
+                  "environment",
               },
               audio: false,
             };
@@ -224,12 +293,17 @@
         currentDeviceIndex = index;
       }
 
-      // Open camera
+      /* =====================================================
+         OPEN LIVE CAMERA
+         ===================================================== */
+
       liveScanBtn.addEventListener(
         "click",
         async () => {
 
-          cameraSection.classList.remove("hidden");
+          cameraSection.classList.remove(
+            "hidden"
+          );
 
           try {
 
@@ -261,13 +335,19 @@
         }
       );
 
-      // Switch camera
+      /* =====================================================
+         SWITCH CAMERA
+         ===================================================== */
+
       switchCameraBtn.addEventListener(
         "click",
         async () => {
 
-          if (videoDevices.length < 2)
+          if (
+            videoDevices.length < 2
+          ) {
             return;
+          }
 
           const nextIndex =
             (currentDeviceIndex + 1) %
@@ -290,17 +370,23 @@
         }
       );
 
-      // Close camera
+      /* =====================================================
+         CLOSE CAMERA
+         ===================================================== */
+
       closeCameraBtn.addEventListener(
         "click",
         () => {
 
           if (stream) {
 
-            stream.getTracks().forEach(
-              (track) => track.stop()
-            );
+            stream
+              .getTracks()
+              .forEach((track) =>
+                track.stop()
+              );
 
+            stream = null;
           }
 
           cameraSection.classList.add(
@@ -309,7 +395,10 @@
         }
       );
 
-      // Capture image
+      /* =====================================================
+         CAPTURE IMAGE FROM CAMERA
+         ===================================================== */
+
       captureBtn.addEventListener(
         "click",
         () => {
@@ -339,7 +428,8 @@
                   [blob],
                   "capture.jpg",
                   {
-                    type: "image/jpeg",
+                    type:
+                      "image/jpeg",
                   }
                 );
 
@@ -359,7 +449,10 @@
         }
       );
 
-      // Analyze uploaded image
+      /* =====================================================
+         ANALYZE BUTTON
+         ===================================================== */
+
       analyzeBtn.addEventListener(
         "click",
         () => {
@@ -382,7 +475,10 @@
         }
       );
 
-      // Send image to Flask
+      /* =====================================================
+         SEND IMAGE TO FLASK
+         ===================================================== */
+
       async function sendForAnalysis(file) {
 
         loading.classList.remove(
@@ -392,6 +488,17 @@
         result.classList.add(
           "hidden"
         );
+
+        /*
+         * Hide previous analyzed image
+         * while new image is being processed.
+         */
+
+        uploadedImageContainer.classList.add(
+          "hidden"
+        );
+
+        uploadedImage.src = "";
 
         const formData =
           new FormData();
@@ -444,8 +551,47 @@
         }
       }
 
-      // Display result
+      /* =====================================================
+         RENDER RESULT
+         ===================================================== */
+
       function renderResult(data) {
+
+        /*
+         * ==================================================
+         * SHOW ANALYZED IMAGE
+         * Flask returns:
+         *
+         * image_url:
+         * /static/uploads/filename.jpg
+         *
+         * ==================================================
+         */
+
+        if (data.image_url) {
+
+          uploadedImage.src =
+            data.image_url;
+
+          uploadedImageContainer.classList.remove(
+            "hidden"
+          );
+
+          /*
+           * If browser cache causes an old image,
+           * force refresh using timestamp.
+           */
+
+          uploadedImage.src =
+            data.image_url +
+            "?t=" +
+            new Date().getTime();
+
+        }
+
+        /* ==================================================
+           STATUS
+           ================================================== */
 
         const statusHeading =
           document.getElementById(
@@ -455,8 +601,7 @@
         statusHeading.textContent =
           data.status;
 
-        statusHeading.className =
-          "";
+        statusHeading.className = "";
 
         if (
           data.status === "Fresh"
@@ -482,20 +627,36 @@
           );
         }
 
+        /* ==================================================
+           CONFIDENCE
+           ================================================== */
+
         document.getElementById(
           "confidenceText"
         ).textContent =
           `Confidence: ${data.confidence}%`;
+
+        /* ==================================================
+           pH
+           ================================================== */
 
         document.getElementById(
           "phValue"
         ).textContent =
           `${data.ph_prediction.average} (range ${data.ph_prediction.range})`;
 
+        /* ==================================================
+           SHELF LIFE
+           ================================================== */
+
         document.getElementById(
           "shelfValue"
         ).textContent =
           data.shelf_life;
+
+        /* ==================================================
+           PRECAUTIONS
+           ================================================== */
 
         const list =
           document.getElementById(
@@ -518,6 +679,10 @@
           }
         );
 
+        /* ==================================================
+           SHOW RESULT
+           ================================================== */
+
         result.classList.remove(
           "hidden"
         );
@@ -529,4 +694,4 @@
     </script>
   </body>
 </html>
-```
+
